@@ -1,0 +1,54 @@
+name: 'Qbric Repo Scanner'
+description: 'Scan a repository and report coverage / untested-flow results to qbric-api'
+
+inputs:
+  scan-path:
+    description: 'Path to scan'
+    required: false
+    default: '.'
+  tenant-id:
+    description: 'qbric tenant id (numeric)'
+    required: false
+    default: ''
+  qbric-api-url:
+    description: 'Base URL of qbric-api, e.g. https://qbric-api. Reporting is skipped when empty.'
+    required: false
+    default: ''
+  qbric-scan-token:
+    description: 'Bearer token for the scan-results ingestion endpoint (provide via a GitHub secret).'
+    required: false
+    default: ''
+  enable-java:
+    description: 'Include Java/Maven/Gradle heuristics'
+    required: false
+    default: 'true'
+  enable-node:
+    description: 'Include Node/npm heuristics'
+    required: false
+    default: 'true'
+  enable-secrets:
+    description: 'Fail the build when a likely secret is found'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Qbric Scan
+      shell: bash
+      env:
+        QBRIC_API_URL: ${{ inputs.qbric-api-url }}
+        QBRIC_SCAN_TOKEN: ${{ inputs.qbric-scan-token }}
+        QBRIC_TENANT_ID: ${{ inputs.tenant-id }}
+        ENABLE_JAVA: ${{ inputs.enable-java }}
+        ENABLE_NODE: ${{ inputs.enable-node }}
+        ENABLE_SECRETS: ${{ inputs.enable-secrets }}
+        REPO_FULL_NAME: ${{ github.repository }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        REF_NAME: ${{ github.ref_name }}
+        COMMIT_SHA: ${{ github.sha }}
+        RUN_ID: ${{ github.run_id }}
+        EVENT_NAME: ${{ github.event_name }}
+      run: |
+        chmod +x "${{ github.action_path }}/scripts/scan.sh"
+        "${{ github.action_path }}/scripts/scan.sh" "${{ inputs.scan-path }}"

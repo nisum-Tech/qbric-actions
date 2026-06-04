@@ -1,0 +1,34 @@
+name: QBRIC Test Generation
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  qbric-generate:
+    name: "🤖 QBRIC — Generate & Validate Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run QBRIC Test Generator
+        uses: qbric-ai/qbric-action@v2
+        with:
+          mode: auto
+          framework: auto-detect
+          dry-run: true
+          pipeline-2: true
+        env:
+          QBRIC_TOKEN: ${{ secrets.QBRIC_TOKEN }}
+          GEMINI_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Post Coverage Report
+        if: always()
+        uses: qbric-ai/coverage-reporter@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-pr: true
