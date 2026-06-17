@@ -1,0 +1,41 @@
+name: Qbric Scan Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - master
+
+jobs:
+  automation-actions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run QBRIC Test Generator
+        uses: malikimransabir/automation-actions@v2
+        with:
+          mode: auto
+          framework: auto-detect
+          dry-run: true
+          pipeline: true
+          scan-path: .
+          tenant-id: ${{ vars.QBRIC_TENANT_ID }}
+          qbric-api-url: ${{ vars.QBRIC_API_URL }}
+          qbric-scan-token: ${{ secrets.QBRIC_SCAN_TOKEN }}
+          enable-java: true
+          enable-node: true
+          enable-secrets: true
+
+      - name: Run Qbric Scan
+        uses: malikimransabir/automation-actions@v2
+        with:
+          scan-path: .
+          tenant-id: ${{ vars.QBRIC_TENANT_ID }}
+          qbric-api-url: ${{ vars.QBRIC_API_URL }}
+          qbric-scan-token: ${{ secrets.QBRIC_SCAN_TOKEN }}
+          enable-java: true
+          enable-node: true
+          enable-secrets: true
