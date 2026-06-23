@@ -1,0 +1,41 @@
+name: Qbric Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - master
+
+jobs:
+  qbric:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Run your tests first so the action can parse the reports
+      # (Surefire/Failsafe XML or Cucumber JSON) and report pass/fail to the
+      # Test Runs page. Keep going on failures so the report is still produced.
+      - name: Run tests
+        run: mvn -B test
+        continue-on-error: true
+
+      # Step 1 triggers New Code Generation on qbric-api (clone → plan →
+      # generate → PR, run asynchronously on the qbric-api host).
+      # Step 2 parses the test reports produced above and posts pass/fail to
+      # the Test Runs page. Both authenticate with the per-tenant scan token.
+      - name: Qbric
+        uses: malikimransabir/qbric-action@v1
+        with:
+          qbric-api-url: ${{ vars.QBRIC_API_URL }}
+          tenant-id: ${{ vars.QBRIC_TENANT_ID }}
+          qbric-scan-token: ${{ secrets.QBRIC_SCAN_TOKEN }}
+
+          # Step 1 — New Code Generation (defaults: ALL_UNIMPLEMENTED / API / autoApprove).
+          generate: true
+          # input-type: ALL_UNIMPLEMENTED
+          # accelerator: API
+
+          # Step 2 — report this build's test results to the Test Runs page.
+          report-test-runs: true
