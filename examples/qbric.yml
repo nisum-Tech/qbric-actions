@@ -1,34 +1,41 @@
-name: QBRIC Test Generation
+name: Qbric Pipeline
 
 on:
   pull_request:
     branches:
       - main
       - develop
+      - master
 
 jobs:
-  qbric-generate:
-    name: "🤖 QBRIC — Generate & Validate Tests"
+  qbric:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Run QBRIC Test Generator
-        uses: qbric-ai/qbric-action@v2
-        with:
-          mode: auto
-          framework: auto-detect
-          dry-run: true
-          pipeline-2: true
-        env:
-          QBRIC_TOKEN: ${{ secrets.QBRIC_TOKEN }}
-          GEMINI_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+      # Run your tests first so the action can parse the reports
+      # (Surefire/Failsafe XML or Cucumber JSON) and report pass/fail to the
+      # Test Runs page. Keep going on failures so the report is still produced.
+      - name: Run tests
+        run: mvn -B test
+        continue-on-error: true
 
-      - name: Post Coverage Report
-        if: always()
-        uses: qbric-ai/coverage-reporter@v2
+      # Step 1 triggers New Code Generation on qbric-api (clone → plan →
+      # generate → PR, run asynchronously on the qbric-api host).
+      # Step 2 parses the test reports produced above and posts pass/fail to
+      # the Test Runs page. Both authenticate with the per-tenant scan token.
+      - name: Qbric
+        uses: malikimransabir/qbric-action@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          comment-on-pr: true
+          qbric-api-url: ${{ vars.QBRIC_API_URL }}
+          tenant-id: ${{ vars.QBRIC_TENANT_ID }}
+          qbric-scan-token: ${{ secrets.QBRIC_SCAN_TOKEN }}
+
+          # Step 1 — New Code Generation (defaults: ALL_UNIMPLEMENTED / API / autoApprove).
+          generate: true
+          # input-type: ALL_UNIMPLEMENTED
+          # accelerator: API
+
+          # Step 2 — report this build's test results to the Test Runs page.
+          report-test-runs: true

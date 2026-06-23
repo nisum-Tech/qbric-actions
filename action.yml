@@ -1,54 +1,126 @@
-name: 'Qbric Repo Scanner'
-description: 'Scan a repository and report coverage / untested-flow results to qbric-api'
+name: 'Qbric Action'
+description: 'Qbric pipeline action — triggers New Code Generation and reports test runs to qbric-api'
 
 inputs:
-  scan-path:
-    description: 'Path to scan'
-    required: false
-    default: '.'
-  tenant-id:
-    description: 'qbric tenant id (numeric)'
-    required: false
-    default: ''
+  # ── Connection (required to talk to qbric-api) ──────────────────────────────
   qbric-api-url:
-    description: 'Base URL of qbric-api, e.g. https://qbric-api. Reporting is skipped when empty.'
+    description: 'Base URL of qbric-api, e.g. https://qbric-api. All API calls are skipped when empty.'
     required: false
     default: ''
   qbric-scan-token:
-    description: 'Bearer token for the scan-results ingestion endpoint (provide via a GitHub secret).'
+    description: 'Bearer token for the per-tenant CI endpoints (provide via a GitHub secret).'
     required: false
     default: ''
-  enable-java:
-    description: 'Include Java/Maven/Gradle heuristics'
+  tenant-id:
+    description: 'Qbric tenant id (numeric).'
+    required: false
+    default: ''
+
+  # ── Step 1: New Code Generation ─────────────────────────────────────────────
+  generate:
+    description: 'Trigger New Code Generation on qbric-api for this repo. Set "false" to skip step 1.'
     required: false
     default: 'true'
-  enable-node:
-    description: 'Include Node/npm heuristics'
+  input-type:
+    description: 'What to generate from: ALL_UNIMPLEMENTED | FEATURE_FILE | JIRA | REQUIREMENT | SWAGGER. Default: ALL_UNIMPLEMENTED.'
+    required: false
+    default: ''
+  accelerator:
+    description: 'Target accelerator: UI | API | MOBILE. Default: API.'
+    required: false
+    default: ''
+  codegen-profile:
+    description: 'Tuning profile: BASIC (small/medium repos) | ENHANCE (large repos). Default: BASIC.'
+    required: false
+    default: ''
+  feature-path:
+    description: 'Repo-relative .feature path (required when input-type=FEATURE_FILE).'
+    required: false
+    default: ''
+  jira-key:
+    description: 'JIRA key (required when input-type=JIRA).'
+    required: false
+    default: ''
+  requirement:
+    description: 'Free-form requirement text (required when input-type=REQUIREMENT).'
+    required: false
+    default: ''
+  auto-approve:
+    description: 'Skip the plan-approval gate. Default: true (CI has no human to approve).'
     required: false
     default: 'true'
-  enable-secrets:
-    description: 'Fail the build when a likely secret is found'
+  build-system:
+    description: 'Build system to scaffold if the repo has none: MAVEN | GRADLE | NPM (optional).'
+    required: false
+    default: ''
+  test-framework:
+    description: 'Test framework to scaffold if the repo has none (optional).'
+    required: false
+    default: ''
+  base-package:
+    description: 'Base package for scaffolded sources, e.g. com.acme.tests (optional).'
+    required: false
+    default: ''
+  fail-on-codegen-error:
+    description: 'Fail the step if the codegen trigger call fails. Default: false (best-effort).'
+    required: false
+    default: 'false'
+
+  # ── Step 2: Test-run reporting ──────────────────────────────────────────────
+  report-test-runs:
+    description: 'Parse the build''s test reports (Surefire/Failsafe XML or Cucumber JSON) and report pass/fail to the Test Runs page. Run your test step before this action.'
     required: false
     default: 'true'
+  scan-path:
+    description: 'Path to look for test reports (defaults to the repo root).'
+    required: false
+    default: '.'
 
 runs:
   using: 'composite'
   steps:
-    - name: Run Qbric Scan
+    # ── Step 1: Execute (Call API) New Code Generation ──────────────────────
+    - name: Qbric — Trigger New Code Generation
+      if: ${{ inputs.generate == 'true' }}
       shell: bash
       env:
         QBRIC_API_URL: ${{ inputs.qbric-api-url }}
         QBRIC_SCAN_TOKEN: ${{ inputs.qbric-scan-token }}
         QBRIC_TENANT_ID: ${{ inputs.tenant-id }}
-        ENABLE_JAVA: ${{ inputs.enable-java }}
-        ENABLE_NODE: ${{ inputs.enable-node }}
-        ENABLE_SECRETS: ${{ inputs.enable-secrets }}
+        REPO_FULL_NAME: ${{ github.repository }}
+        REF_NAME: ${{ github.ref_name }}
+        INPUT_TYPE: ${{ inputs.input-type }}
+        ACCELERATOR: ${{ inputs.accelerator }}
+        CODEGEN_PROFILE: ${{ inputs.codegen-profile }}
+        FEATURE_PATH: ${{ inputs.feature-path }}
+        JIRA_KEY: ${{ inputs.jira-key }}
+        REQUIREMENT: ${{ inputs.requirement }}
+        AUTO_APPROVE: ${{ inputs.auto-approve }}
+        BUILD_SYSTEM: ${{ inputs.build-system }}
+        TEST_FRAMEWORK: ${{ inputs.test-framework }}
+        BASE_PACKAGE: ${{ inputs.base-package }}
+        QBRIC_FAIL_ON_ERROR: ${{ inputs.fail-on-codegen-error }}
+      run: |
+        chmod +x "${{ github.action_path }}/scripts/codegen.sh"
+        "${{ github.action_path }}/scripts/codegen.sh"
+
+    # ── Step 2: Test-Run Reporter (parses test reports → Test Runs page) ─────
+    - name: Qbric — Report Test Runs
+      if: ${{ inputs.report-test-runs == 'true' }}
+      shell: bash
+      env:
+        QBRIC_API_URL: ${{ inputs.qbric-api-url }}
+        QBRIC_SCAN_TOKEN: ${{ inputs.qbric-scan-token }}
+        QBRIC_TENANT_ID: ${{ inputs.tenant-id }}
         REPO_FULL_NAME: ${{ github.repository }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        REF_NAME: ${{ github.ref_name }}
-        COMMIT_SHA: ${{ github.sha }}
+        # On pull_request events github.ref_name is "<PR#>/merge"; head_ref is the
+        # actual source branch. Reporting head_ref lets qbric-api correlate this
+        # run back to the codegen job that pushed that branch (Generation Complete).
+        REF_NAME: ${{ github.head_ref || github.ref_name }}
+        COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         RUN_ID: ${{ github.run_id }}
         EVENT_NAME: ${{ github.event_name }}
       run: |
-        chmod +x "${{ github.action_path }}/scripts/scan.sh"
-        "${{ github.action_path }}/scripts/scan.sh" "${{ inputs.scan-path }}"
+        chmod +x "${{ github.action_path }}/scripts/test-run.sh"
+        "${{ github.action_path }}/scripts/test-run.sh" "${{ inputs.scan-path }}"
