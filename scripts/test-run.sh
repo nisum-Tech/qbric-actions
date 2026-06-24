@@ -123,12 +123,14 @@ if [ -n "$QBRIC_API_URL" ] && [ -n "$QBRIC_SCAN_TOKEN" ] && [ -n "$QBRIC_TENANT_
     -X POST "$url" \
     -H "Authorization: Bearer ${QBRIC_SCAN_TOKEN}" \
     -H "Content-Type: application/json" \
-    --data "$payload" 2>/dev/null || echo "000")
+    --data "$payload" 2>/tmp/qbric-testrun-err.txt)
+  [ -z "$http_code" ] && http_code="000"
   if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
     echo "  ✓ reported (HTTP $http_code)"
   else
     echo "  ⚠ report failed (HTTP $http_code) — build not failed on reporting"
-    head -c 400 /tmp/qbric-testrun-resp.txt 2>/dev/null || true
+    [ -s /tmp/qbric-testrun-err.txt ] && echo "  curl error: $(cat /tmp/qbric-testrun-err.txt)"
+    [ -s /tmp/qbric-testrun-resp.txt ] && head -c 400 /tmp/qbric-testrun-resp.txt
   fi
 else
   echo "Reporting skipped (set qbric-api-url, qbric-scan-token, tenant-id). Payload:"
