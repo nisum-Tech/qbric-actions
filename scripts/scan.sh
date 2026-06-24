@@ -86,7 +86,7 @@ if [ -n "$jacoco" ]; then
   mm=$(grep -oE '<counter type="METHOD"[^/]*/>' "$jacoco" | tail -1 | grep -oE 'missed="[0-9]+"' | grep -oE '[0-9]+')
   [ -n "$mm" ] && untested="$mm"
 elif [ -n "$nyc" ]; then
-  pct=$(python3 -c "import json;print(json.load(open('$nyc'))['total']['lines']['pct'])" 2>/dev/null)
+  pct=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['total']['lines']['pct'])" "$nyc" 2>/dev/null)
   if [ -n "$pct" ]; then coverage="$pct"; coverage_source="nyc:$nyc"; fi
 fi
 
@@ -139,12 +139,14 @@ if [ -n "$QBRIC_API_URL" ] && [ -n "$QBRIC_SCAN_TOKEN" ] && [ -n "$QBRIC_TENANT_
     -X POST "$url" \
     -H "Authorization: Bearer ${QBRIC_SCAN_TOKEN}" \
     -H "Content-Type: application/json" \
-    --data "$payload" 2>/dev/null || echo "000")
+    --data "$payload" 2>/tmp/qbric-scan-err.txt)
+  [ -z "$http_code" ] && http_code="000"
   if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
     echo "  ✓ reported (HTTP $http_code)"
   else
     echo "  ⚠ report failed (HTTP $http_code) — continuing; build not failed on reporting"
-    cat /tmp/qbric-scan-resp.txt 2>/dev/null | head -c 400 || true
+    [ -s /tmp/qbric-scan-err.txt ] && echo "  curl error: $(cat /tmp/qbric-scan-err.txt)"
+    [ -s /tmp/qbric-scan-resp.txt ] && head -c 400 /tmp/qbric-scan-resp.txt
   fi
 else
   echo "Reporting skipped (set qbric-api-url, qbric-scan-token, tenant-id to enable). Payload:"

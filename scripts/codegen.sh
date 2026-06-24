@@ -78,7 +78,8 @@ http_code=$(curl -sS -m 60 -o /tmp/qbric-codegen-resp.txt -w "%{http_code}" \
   -X POST "$url" \
   -H "Authorization: Bearer ${QBRIC_SCAN_TOKEN}" \
   -H "Content-Type: application/json" \
-  --data "$payload" 2>/dev/null || echo "000")
+  --data "$payload" 2>/tmp/qbric-codegen-err.txt)
+[ -z "$http_code" ] && http_code="000"
 
 body=$(cat /tmp/qbric-codegen-resp.txt 2>/dev/null || true)
 if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
@@ -89,6 +90,7 @@ if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
 fi
 
 echo "  ⚠ codegen trigger failed (HTTP $http_code)"
+[ -s /tmp/qbric-codegen-err.txt ] && echo "  curl error: $(cat /tmp/qbric-codegen-err.txt)"
 printf '%s\n' "$body" | head -c 500
 echo
 if [ "$QBRIC_FAIL_ON_ERROR" = "true" ]; then

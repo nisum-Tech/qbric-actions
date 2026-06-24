@@ -84,12 +84,18 @@ PY
 )
     failures="$failed"; errors=0
     report_source="cucumber-json:$cjson"
+    # passed is already correct from python; skip the JUnit recalculation below
+    [ "$passed" -lt 0 ] && passed=0
   fi
 fi
 
-failed=$(( failures + errors ))
-passed=$(( total - failed - skipped ))
-[ "$passed" -lt 0 ] && passed=0
+if [ "$report_source" != "none" ] && [[ "$report_source" != cucumber* ]]; then
+  failed=$(( failures + errors ))
+  passed=$(( total - failed - skipped ))
+  [ "$passed" -lt 0 ] && passed=0
+elif [ "$report_source" = "none" ]; then
+  failed=0; passed=0
+fi
 duration=$(awk "BEGIN{printf \"%d\", $time_total + 0.5}")
 
 echo "report source: $report_source"
