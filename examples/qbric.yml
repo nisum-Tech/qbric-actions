@@ -21,10 +21,8 @@ jobs:
         run: mvn -B test
         continue-on-error: true
 
-      # Step 1 triggers New Code Generation on qbric-api (clone → plan →
-      # generate → PR, run asynchronously on the qbric-api host).
-      # Step 2 parses the test reports produced above and posts pass/fail to
-      # the Test Runs page. Both authenticate with the per-tenant scan token.
+      # Parses the test reports produced above and posts pass/fail results to
+      # the Test Runs page in QBric. Authenticates with the per-tenant scan token.
       - name: Qbric
         uses: malikimransabir/qbric-action@v1
         with:
@@ -32,10 +30,5 @@ jobs:
           tenant-id: ${{ vars.QBRIC_TENANT_ID }}
           qbric-scan-token: ${{ secrets.QBRIC_SCAN_TOKEN }}
 
-          # Step 1 — New Code Generation (defaults: ALL_UNIMPLEMENTED / API / autoApprove).
-          generate: true
-          # input-type: ALL_UNIMPLEMENTED
-          # accelerator: API
-
-          # Step 2 — report this build's test results to the Test Runs page.
+          # Report this build's test results to the Test Runs page.
           report-test-runs: true
